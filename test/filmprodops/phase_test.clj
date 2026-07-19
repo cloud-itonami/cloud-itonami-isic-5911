@@ -10,7 +10,8 @@
 (deftest phase-0-read-only
   (testing "phase 0 allows no writes"
     (doseq [op [:log-production-record :schedule-production-operation
-                :flag-onset-safety-concern :coordinate-post-production-handoff]]
+                :flag-onset-safety-concern :coordinate-post-production-handoff
+                :coordinate-social-distribution-handoff :flag-platform-content-policy-concern]]
       (let [{:keys [disposition]} (phase/gate 0 {:op op} :commit)]
         (is (= :hold disposition)
             (str "phase 0 must hold all ops including " op))))))
@@ -26,18 +27,20 @@
 (deftest phase-2-adds-coordination-ops
   (testing "phase 2 allows coordination ops, still requires approval"
     (doseq [op [:log-production-record :schedule-production-operation
-                :coordinate-post-production-handoff]]
+                :coordinate-post-production-handoff :coordinate-social-distribution-handoff]]
       (let [{:keys [disposition]} (phase/gate 2 {:op op} :commit)]
         (is (= :escalate disposition)
             (str "phase 2 op " op " requires approval"))))))
 
 (deftest phase-3-auto-commits-clean-ops
-  (testing "phase 3 auto-commits clean, high-conf non-safety ops"
+  (testing "phase 3 auto-commits clean, high-conf non-safety, non-content-policy ops"
     (let [{:keys [disposition]} (phase/gate 3 {:op :log-production-record} :commit)]
       (is (= :commit disposition)))
     (let [{:keys [disposition]} (phase/gate 3 {:op :schedule-production-operation} :commit)]
       (is (= :commit disposition)))
     (let [{:keys [disposition]} (phase/gate 3 {:op :coordinate-post-production-handoff} :commit)]
+      (is (= :commit disposition)))
+    (let [{:keys [disposition]} (phase/gate 3 {:op :coordinate-social-distribution-handoff} :commit)]
       (is (= :commit disposition)))))
 
 (deftest safety-concern-holds-when-not-enabled
@@ -52,6 +55,19 @@
     (let [{:keys [disposition]} (phase/gate 3 {:op :flag-onset-safety-concern} :commit)]
       (is (= :escalate disposition)
           "phase 3 must escalate safety concerns regardless of governor disposition"))))
+
+(deftest platform-content-policy-concern-holds-when-not-enabled
+  (testing ":flag-platform-content-policy-concern holds in phases 0-2 (not yet enabled)"
+    (doseq [ph [0 1 2]]
+      (let [{:keys [disposition]} (phase/gate ph {:op :flag-platform-content-policy-concern} :escalate)]
+        (is (= :hold disposition)
+            (str "phase " ph " has not enabled flag-platform-content-policy-concern yet"))))))
+
+(deftest platform-content-policy-concern-escalates-when-enabled
+  (testing ":flag-platform-content-policy-concern ALWAYS escalates when enabled, even if governor says commit"
+    (let [{:keys [disposition]} (phase/gate 3 {:op :flag-platform-content-policy-concern} :commit)]
+      (is (= :escalate disposition)
+          "phase 3 must escalate platform content-policy concerns regardless of governor disposition"))))
 
 (deftest hard-hold-always-wins
   (testing "a governor HARD hold stays HOLD regardless of phase"

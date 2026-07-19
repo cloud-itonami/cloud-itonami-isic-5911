@@ -45,10 +45,30 @@
       (is (= :propose (:effect p)))
       (is (string? (:summary p))))))
 
+(deftest propose-social-distribution-handoff-shape
+  (testing "social/platform distribution handoff proposal has correct shape"
+    (let [p (adv/infer db {:op :coordinate-social-distribution-handoff
+                           :production-id "production-1"
+                           :patch {:platform "shorts" :destination "channel-a"}})]
+      (is (= :coordinate-social-distribution-handoff (:op p)))
+      (is (= "production-1" (:production-id p)))
+      (is (= :propose (:effect p)))
+      (is (string? (:summary p))))))
+
+(deftest propose-platform-content-policy-concern-shape
+  (testing "platform content-policy-concern proposal always escalates"
+    (let [p (adv/infer db {:op :flag-platform-content-policy-concern
+                           :production-id "production-1"
+                           :patch {:concern "possible community-guideline risk in the trailer cut"}})]
+      (is (= :flag-platform-content-policy-concern (:op p)))
+      (is (= :propose (:effect p)))
+      (is (string? (:summary p))))))
+
 (deftest all-proposals-effect-is-always-propose
   (testing "every proposal type has :effect :propose, never direct actuation"
     (doseq [op [:log-production-record :schedule-production-operation
-                :flag-onset-safety-concern :coordinate-post-production-handoff]]
+                :flag-onset-safety-concern :coordinate-post-production-handoff
+                :coordinate-social-distribution-handoff :flag-platform-content-policy-concern]]
       (let [p (adv/infer db {:op op :production-id "production-1" :patch {}})]
         (is (= :propose (:effect p))
             (str "op " op " must have :effect :propose"))))))
@@ -56,7 +76,8 @@
 (deftest rationale-string-is-present
   (testing "every proposal has a rationale explaining the advisor's thinking"
     (doseq [op [:log-production-record :schedule-production-operation
-                :flag-onset-safety-concern :coordinate-post-production-handoff]]
+                :flag-onset-safety-concern :coordinate-post-production-handoff
+                :coordinate-social-distribution-handoff :flag-platform-content-policy-concern]]
       (let [p (adv/infer db {:op op :production-id "production-1" :patch {}})]
         (is (string? (:rationale p))
             (str "op " op " must have a :rationale string"))))))
