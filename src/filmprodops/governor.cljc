@@ -10,7 +10,11 @@
   This actor's scope is deliberately narrow -- OPERATIONS COORDINATION
   ONLY (shoot-day/scene/take record logging, shoot-day/location/crew
   scheduling proposals, on-set safety-concern flagging, footage/dailies
-  post-production handoff coordination). It NEVER performs or
+  post-production handoff coordination, completed-production handoff to
+  an SNS/platform distribution channel, and platform content-policy-
+  concern flagging -- the same coordination-only posture applies
+  whether the production is a conventional film/TV shoot or an
+  AI-generated, SNS-native video production). It NEVER performs or
   authorizes:
     - finalizing an on-set safety-clearance decision (stunt-clearance
       sign-off, hazard-clearance sign-off)
@@ -18,6 +22,10 @@
     - direct actuation of rigging/stunt/pyrotechnic equipment
     - talent compensation or contract finalization
     - insurance-claim or legal/union-grievance adjudication
+    - finalizing/executing an actual platform posting or publish action
+    - finalizing a content-moderation ruling
+    - finalizing a monetization-eligibility determination
+    - waiving or bypassing an AI-generated-content disclosure obligation
 
   Three HARD checks, ALL permanent, un-overridable by any human
   approval:
@@ -50,13 +58,20 @@
                                     pyrotechnic equipment (or talent-
                                     compensation/contract finalization,
                                     or insurance/legal/union
-                                    adjudication) is a HARD, PERMANENT
+                                    adjudication, or finalizing/executing
+                                    an actual platform posting or publish
+                                    action, or finalizing a content-
+                                    moderation ruling, or finalizing a
+                                    monetization-eligibility
+                                    determination, or waiving/bypassing
+                                    an AI-generated-content disclosure
+                                    obligation) is a HARD, PERMANENT
                                     block -- this actor's charter
                                     excludes that territory
                                     structurally, not as a rollout
                                     milestone. Evaluated UNCONDITIONALLY
                                     on every proposal. An op outside the
-                                    closed four-op allowlist is the SAME
+                                    closed six-op allowlist is the SAME
                                     failure mode (an advisor proposing
                                     something it was never authorized to
                                     propose) and is folded into this
@@ -75,11 +90,11 @@
   guards this regression directly.
 
   One ESCALATE (SOFT) gate: LLM confidence below the floor, OR the op is
-  `:flag-onset-safety-concern` -- ALWAYS escalates to a human, regardless
-  of confidence, regardless of how clean the proposal otherwise is.
-  `filmprodops.phase` independently agrees: `:flag-onset-safety-concern`
-  is never a member of any phase's `:auto` set either -- two layers, not
-  one."
+  `:flag-onset-safety-concern` or `:flag-platform-content-policy-concern`
+  -- ALWAYS escalates to a human, regardless of confidence, regardless
+  of how clean the proposal otherwise is. `filmprodops.phase`
+  independently agrees: neither op is ever a member of any phase's
+  `:auto` set either -- two layers, not one."
   (:require [clojure.string :as str]
             [filmprodops.store :as store]))
 
@@ -89,11 +104,12 @@
   "The closed proposal-op allowlist -- an op outside this set is a
   scope violation by construction (see `scope-exclusion-violations`)."
   #{:log-production-record :schedule-production-operation
-    :flag-onset-safety-concern :coordinate-post-production-handoff})
+    :flag-onset-safety-concern :coordinate-post-production-handoff
+    :coordinate-social-distribution-handoff :flag-platform-content-policy-concern})
 
 (def always-escalate-ops
   "Ops that ALWAYS require human sign-off, clean or not."
-  #{:flag-onset-safety-concern})
+  #{:flag-onset-safety-concern :flag-platform-content-policy-concern})
 
 (def scope-excluded-terms
   "Case-insensitive substrings that mark a proposal as touching a
@@ -116,7 +132,22 @@
    "trigger pyrotechnic" "fire the pyrotechnic" "operate stunt rigging" "actuate stunt equipment"
    "リギングを作動させる" "火薬を起爆させる"
    "finalize talent compensation" "finalize the talent contract" "finalize talent contract terms"
-   "settle the insurance claim" "adjudicate the union grievance" "adjudicate union grievance"])
+   "settle the insurance claim" "adjudicate the union grievance" "adjudicate union grievance"
+   "finalize the platform posting" "finalize platform publishing" "confirm the platform publish"
+   "execute the platform post" "publish the content to the platform" "プラットフォームへの投稿を確定"
+   "投稿を確定して公開する" "配信プラットフォームへの公開を確定"
+   "finalize the content moderation ruling" "finalize the moderation decision"
+   "confirm the moderation approval decision" "コンテンツモデレーションの合否判定を確定"
+   "モデレーション判定を確定する"
+   "finalize monetization eligibility" "confirm the monetization eligibility decision"
+   "finalize the monetization determination" "収益化適格性の判定を確定" "マネタイズ可否を確定する"
+   "waive the ai-generated content disclosure requirement" "bypass the ai disclosure label requirement"
+   "remove the ai-generated content disclosure obligation" "disable the ai-generated content disclosure requirement"
+   ;; NOTE: `text-blob` lower-cases the whole blob before scanning, so
+   ;; these Japanese terms use ASCII lower-case "ai" (not "AI") -- an
+   ;; upper-case "AI" here would never match and would silently defeat
+   ;; the check.
+   "ai生成コンテンツの開示表示義務を無効化" "ai生成物の開示表示義務を回避する"])
 
 ;; ----------------------------- checks -----------------------------
 
@@ -148,10 +179,13 @@
   "HARD, PERMANENT block: a proposal outside the closed op allowlist, or
   one whose content touches finalizing an on-set safety-clearance
   decision, overriding a minor-performer work-hour limit, directly
-  actuating rigging/stunt/pyrotechnic equipment, or finalizing talent-
-  compensation/insurance/legal/union matters, regardless of confidence
-  or how clean every other check is. Evaluated UNCONDITIONALLY on every
-  proposal."
+  actuating rigging/stunt/pyrotechnic equipment, finalizing talent-
+  compensation/insurance/legal/union matters, finalizing/executing an
+  actual platform posting or publish action, finalizing a content-
+  moderation ruling, finalizing a monetization-eligibility
+  determination, or waiving/bypassing an AI-generated-content
+  disclosure obligation, regardless of confidence or how clean every
+  other check is. Evaluated UNCONDITIONALLY on every proposal."
   [proposal]
   (let [op (:op proposal)
         blob (text-blob proposal)]
@@ -162,7 +196,7 @@
 
       (some #(str/includes? blob %) scope-excluded-terms)
       [{:rule :scope-excluded
-        :detail "現場安全許可の最終判断/未成年出演者労働時間制限の解除/リギング・火薬の直接作動/タレント契約や保険・労組の裁定に触れる提案は永久に禁止"}])))
+        :detail "現場安全許可の最終判断/未成年出演者労働時間制限の解除/リギング・火薬の直接作動/タレント契約や保険・労組の裁定/プラットフォームへの投稿・公開の確定/コンテンツモデレーションの合否判定の確定/収益化適格性の判定の確定/AI生成コンテンツの開示表示義務の無効化・回避に触れる提案は永久に禁止"}])))
 
 (defn check
   "Censors a FilmProductionAdvisor proposal against the governor rules.

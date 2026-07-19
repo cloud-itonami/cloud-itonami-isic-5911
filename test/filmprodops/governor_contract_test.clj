@@ -100,6 +100,103 @@
       (is (= 0 (count (store/coordination-log db)))
           "scope-excluded content must HARD hold"))))
 
+(deftest social-distribution-handoff-full-flow
+  (testing "clean social/platform distribution handoff proposal -> auto-commit at phase 3"
+    (let [db (store/seed-db)
+          actor (op/build db)
+          ctx {:actor-id "test-9" :phase 3}
+          result (exec-request actor "t9"
+                               {:op :coordinate-social-distribution-handoff :production-id "production-1"
+                                :patch {:platform "youtube-shorts" :destination "channel-a"}}
+                               ctx)]
+      (is (some? result))
+      (is (> (count (store/coordination-log db)) 0)
+          "clean social-distribution-handoff proposal must auto-commit at phase 3"))))
+
+(deftest platform-content-policy-concern-always-escalates
+  (testing ":flag-platform-content-policy-concern escalates for human approval, regardless of phase/confidence"
+    (let [db (store/seed-db)
+          actor (op/build db)
+          ctx {:actor-id "test-10" :phase 3}
+          result (exec-request actor "t10"
+                               {:op :flag-platform-content-policy-concern :production-id "production-1"
+                                :patch {:concern "possible community-guideline risk in the trailer cut" :confidence 0.99}}
+                               ctx)]
+      (is (some? result))
+      (is (= 0 (count (store/coordination-log db)))
+          "platform content-policy concern must not auto-commit, must wait for approval")
+      (resume-approval actor "t10" :approved)
+      (is (> (count (store/coordination-log db)) 0)
+          "after approval, record must be committed"))))
+
+(deftest platform-posting-finalization-hard-hold
+  (testing "proposal that finalizes/executes an actual platform posting -> permanent hard hold"
+    (let [db (store/seed-db)
+          bad-advisor (reify advisor/Advisor
+                        (-advise [_ _ req]
+                          (assoc (advisor/infer nil req)
+                                 :rationale "finalize the platform posting for the trailer cut and go live")))
+          actor (op/build db {:advisor bad-advisor})
+          ctx {:actor-id "test-11" :phase 3}
+          result (exec-request actor "t11"
+                               {:op :coordinate-social-distribution-handoff :production-id "production-1"
+                                :patch {:platform "youtube-shorts"}}
+                               ctx)]
+      (is (some? result))
+      (is (= 0 (count (store/coordination-log db)))
+          "platform-posting-finalization content must HARD hold"))))
+
+(deftest content-moderation-ruling-finalization-hard-hold
+  (testing "proposal that finalizes a content-moderation ruling -> permanent hard hold"
+    (let [db (store/seed-db)
+          bad-advisor (reify advisor/Advisor
+                        (-advise [_ _ req]
+                          (assoc (advisor/infer nil req)
+                                 :rationale "finalize the content moderation ruling as compliant")))
+          actor (op/build db {:advisor bad-advisor})
+          ctx {:actor-id "test-12" :phase 3}
+          result (exec-request actor "t12"
+                               {:op :flag-platform-content-policy-concern :production-id "production-1"
+                                :patch {:concern "possible copyright risk"}}
+                               ctx)]
+      (is (some? result))
+      (is (= 0 (count (store/coordination-log db)))
+          "content-moderation-ruling-finalization content must HARD hold"))))
+
+(deftest monetization-eligibility-finalization-hard-hold
+  (testing "proposal that finalizes monetization eligibility -> permanent hard hold"
+    (let [db (store/seed-db)
+          bad-advisor (reify advisor/Advisor
+                        (-advise [_ _ req]
+                          (assoc (advisor/infer nil req)
+                                 :summary "finalize monetization eligibility for the channel before handoff")))
+          actor (op/build db {:advisor bad-advisor})
+          ctx {:actor-id "test-13" :phase 3}
+          result (exec-request actor "t13"
+                               {:op :coordinate-social-distribution-handoff :production-id "production-1"
+                                :patch {:platform "youtube-shorts"}}
+                               ctx)]
+      (is (some? result))
+      (is (= 0 (count (store/coordination-log db)))
+          "monetization-eligibility-finalization content must HARD hold"))))
+
+(deftest ai-disclosure-waiver-hard-hold
+  (testing "proposal that waives the AI-generated content disclosure requirement -> permanent hard hold"
+    (let [db (store/seed-db)
+          bad-advisor (reify advisor/Advisor
+                        (-advise [_ _ req]
+                          (assoc (advisor/infer nil req)
+                                 :rationale "waive the ai-generated content disclosure requirement for this upload")))
+          actor (op/build db {:advisor bad-advisor})
+          ctx {:actor-id "test-14" :phase 3}
+          result (exec-request actor "t14"
+                               {:op :flag-platform-content-policy-concern :production-id "production-1"
+                                :patch {:concern "AI-generated content disclosure question"}}
+                               ctx)]
+      (is (some? result))
+      (is (= 0 (count (store/coordination-log db)))
+          "ai-disclosure-waiver content must HARD hold"))))
+
 (deftest phase-1-approval-gate
   (testing "phase 1 approved request -> commits after human approval"
     (let [db (store/seed-db)

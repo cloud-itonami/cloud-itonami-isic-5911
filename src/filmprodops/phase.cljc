@@ -7,21 +7,26 @@
                                      allowed, every write needs human
                                      approval.
     Phase 2  assisted-coordination-- adds shoot-day/location/crew
-                                     scheduling proposals and post-
-                                     production handoff coordination,
-                                     still approval.
+                                     scheduling proposals, post-
+                                     production handoff coordination, and
+                                     social/platform distribution
+                                     handoff coordination, still
+                                     approval.
     Phase 3  supervised auto      -- governor-clean, high-confidence
                                      `:log-production-record`/
                                      `:schedule-production-operation`/
-                                     `:coordinate-post-production-handoff`
+                                     `:coordinate-post-production-handoff`/
+                                     `:coordinate-social-distribution-handoff`
                                      may auto-commit.
-                                     `:flag-onset-safety-concern` NEVER
-                                     auto-commits, at any phase.
+                                     `:flag-onset-safety-concern` and
+                                     `:flag-platform-content-policy-concern`
+                                     NEVER auto-commit, at any phase.
 
-  `:flag-onset-safety-concern` is deliberately ABSENT from every phase's
-  `:auto` set, including phase 3 -- a permanent structural fact, not a
-  rollout milestone still to come. Flagging an on-set safety concern
-  always needs a human to actually look at it.
+  `:flag-onset-safety-concern` and `:flag-platform-content-policy-concern`
+  are deliberately ABSENT from every phase's `:auto` set, including
+  phase 3 -- a permanent structural fact, not a rollout milestone still
+  to come. Flagging an on-set safety concern or a platform content-
+  policy concern always needs a human to actually look at it.
   `filmprodops.governor`'s own `always-escalate-ops` enforces the same
   invariant independently -- two layers, not one, agree on this."
   (:require [filmprodops.governor :as governor]))
@@ -29,18 +34,21 @@
 (def read-ops #{})
 (def write-ops governor/allowed-ops)
 
-;; NOTE the invariant: `:flag-onset-safety-concern` is a member of
-;; `write-ops` (governor-gated like any write) but is NEVER a member of
-;; any phase's `:auto` set below. Do not add it there.
+;; NOTE the invariant: `:flag-onset-safety-concern` and
+;; `:flag-platform-content-policy-concern` are members of `write-ops`
+;; (governor-gated like any write) but are NEVER members of any phase's
+;; `:auto` set below. Do not add either there.
 (def phases
   "phase -> {:label .. :writes <ops allowed to write> :auto <ops
   allowed to auto-commit when governor-clean>}."
   {0 {:label "read-only"              :writes #{}                                                                     :auto #{}}
    1 {:label "assisted-logging"       :writes #{:log-production-record}                                               :auto #{}}
    2 {:label "assisted-coordination"  :writes #{:log-production-record :schedule-production-operation
-                                               :coordinate-post-production-handoff}                                   :auto #{}}
+                                               :coordinate-post-production-handoff
+                                               :coordinate-social-distribution-handoff}                               :auto #{}}
    3 {:label "supervised-auto"        :writes write-ops
-      :auto #{:log-production-record :schedule-production-operation :coordinate-post-production-handoff}}})
+      :auto #{:log-production-record :schedule-production-operation :coordinate-post-production-handoff
+              :coordinate-social-distribution-handoff}}})
 
 (def default-phase 3)
 
@@ -52,9 +60,9 @@
   - a write op not yet enabled in this phase -> HOLD (:phase-disabled).
   - a write op enabled but not auto-eligible -> ESCALATE
     (:phase-approval), even if the governor was clean.
-  - `:flag-onset-safety-concern` is never auto-eligible at any phase, so
-    it always escalates once the governor clears it (or holds if the
-    governor doesn't)."
+  - `:flag-onset-safety-concern` and `:flag-platform-content-policy-concern`
+    are never auto-eligible at any phase, so each always escalates once
+    the governor clears it (or holds if the governor doesn't)."
   [phase {:keys [op]} governor-disposition]
   (let [{:keys [writes auto]} (get phases phase (get phases default-phase))]
     (cond

@@ -36,7 +36,7 @@
       (is (some #{:effect-not-propose} (map :rule (:violations verdict)))))))
 
 (deftest op-outside-allowlist-is-hard
-  (testing "an op outside the closed four-op allowlist is a scope violation"
+  (testing "an op outside the closed six-op allowlist is a scope violation"
     (let [s (store/mem-store {"production-1" production-1})
           verdict (gov/check {} nil (clean-proposal :finalize-stunt-clearance "production-1") s)]
       (is (true? (:hard? verdict)))
@@ -89,6 +89,51 @@
       (is (true? (:hard? verdict)))
       (is (some #{:scope-excluded} (map :rule (:violations verdict)))))))
 
+(deftest platform-posting-finalization-content-is-hard
+  (testing "a proposal that finalizes/executes an actual platform posting is HARD-blocked"
+    (let [s (store/mem-store {"production-1" production-1})
+          poisoned (assoc (clean-proposal :coordinate-social-distribution-handoff "production-1")
+                          :summary "finalize the platform posting for the trailer cut and go live")
+          verdict (gov/check {} nil poisoned s)]
+      (is (true? (:hard? verdict)))
+      (is (some #{:scope-excluded} (map :rule (:violations verdict)))))))
+
+(deftest content-moderation-ruling-finalization-content-is-hard
+  (testing "a proposal that finalizes a content-moderation ruling is HARD-blocked"
+    (let [s (store/mem-store {"production-1" production-1})
+          poisoned (assoc (clean-proposal :flag-platform-content-policy-concern "production-1")
+                          :value {:decision "finalize the content moderation ruling as compliant"})
+          verdict (gov/check {} nil poisoned s)]
+      (is (true? (:hard? verdict)))
+      (is (some #{:scope-excluded} (map :rule (:violations verdict)))))))
+
+(deftest monetization-eligibility-finalization-content-is-hard
+  (testing "a proposal that finalizes monetization eligibility is HARD-blocked"
+    (let [s (store/mem-store {"production-1" production-1})
+          poisoned (assoc (clean-proposal :coordinate-social-distribution-handoff "production-1")
+                          :summary "finalize monetization eligibility for the channel before handoff")
+          verdict (gov/check {} nil poisoned s)]
+      (is (true? (:hard? verdict)))
+      (is (some #{:scope-excluded} (map :rule (:violations verdict)))))))
+
+(deftest ai-disclosure-waiver-content-is-hard
+  (testing "a proposal that waives the AI-generated content disclosure requirement is HARD-blocked"
+    (let [s (store/mem-store {"production-1" production-1})
+          poisoned (assoc (clean-proposal :flag-platform-content-policy-concern "production-1")
+                          :value {:decision "waive the ai-generated content disclosure requirement for this upload"})
+          verdict (gov/check {} nil poisoned s)]
+      (is (true? (:hard? verdict)))
+      (is (some #{:scope-excluded} (map :rule (:violations verdict)))))))
+
+(deftest legitimate-platform-content-policy-concern-is-not-scope-excluded
+  (testing "flagging observed platform content-policy risk (community-guideline/monetization/copyright/AI-disclosure risk) as a CONCERN (not a moderation/monetization/disclosure finalization) never trips scope-exclusion -- this actor's core valid use case must not be self-blocked"
+    (let [s (store/mem-store {"production-1" production-1})
+          concern (assoc (clean-proposal :flag-platform-content-policy-concern "production-1")
+                         :value {:concern "possible community-guideline risk and undisclosed AI-generated content in the trailer cut"})
+          verdict (gov/check {} nil concern s)]
+      (is (empty? (filter #(= :scope-excluded (:rule %)) (:violations verdict)))
+          "raw observation content (platform-policy risk) is exactly what this op exists to surface"))))
+
 (deftest legitimate-safety-concern-is-not-scope-excluded
   (testing "flagging observed stunt-risk/hazard concerns as an ON-SET SAFETY CONCERN (not a safety-clearance finalization) never trips scope-exclusion -- this actor's core valid use case must not be self-blocked"
     (let [s (store/mem-store {"production-1" production-1})
@@ -111,13 +156,15 @@
   (testing "no default mock-advisor proposal (any allowed op, any demo production) ever trips scope-exclusion"
     (let [s (store/seed-db)]
       (doseq [op [:log-production-record :schedule-production-operation
-                  :flag-onset-safety-concern :coordinate-post-production-handoff]
+                  :flag-onset-safety-concern :coordinate-post-production-handoff
+                  :coordinate-social-distribution-handoff :flag-platform-content-policy-concern]
               production-id ["production-1" "production-2"]]
         (let [proposal (adv/infer nil {:op op :production-id production-id
                                         :patch {:scene "1A" :take 1
                                                 :location "soundstage 2" :date "2026-07-20"
                                                 :concern "elevated risk on rooftop chase sequence"
-                                                :dailies "day-14" :destination "edit-bay-2"}})
+                                                :dailies "day-14" :destination "edit-bay-2"
+                                                :platform "youtube-shorts"}})
               verdict (gov/check {} nil proposal s)]
           (is (empty? (filter #(= :scope-excluded (:rule %)) (:violations verdict)))
               (str "default proposal for op " op " on " production-id
