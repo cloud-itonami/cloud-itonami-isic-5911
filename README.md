@@ -47,11 +47,11 @@ clojure -M:run
 
 ## Test suite
 
-- `test/filmprodops/governor_test.clj` — unit tests of governor hard checks, scope exclusion, and the self-trip regression guard
-- `test/filmprodops/advisor_test.clj` — advisor proposal shape and consistency
-- `test/filmprodops/phase_test.clj` — rollout phase logic
-- `test/filmprodops/governor_contract_test.clj` — full graph integration, audit trail
-- `test/filmprodops/store_contract_test.clj` — Store protocol and MemStore implementation
+- `test/filmprodops/governor_test.cljk` — unit tests of governor hard checks, scope exclusion, and the self-trip regression guard
+- `test/filmprodops/advisor_test.cljk` — advisor proposal shape and consistency
+- `test/filmprodops/phase_test.cljk` — rollout phase logic
+- `test/filmprodops/governor_contract_test.cljk` — full graph integration, audit trail
+- `test/filmprodops/store_contract_test.cljk` — Store protocol and MemStore implementation
 
 ## Modules
 
