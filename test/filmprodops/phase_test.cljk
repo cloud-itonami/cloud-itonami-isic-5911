@@ -1,6 +1,6 @@
 (ns filmprodops.phase-test
   "Unit tests of `filmprodops.phase` rollout logic."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [filmprodops.phase :as phase]))
 
 (def clean-verdict {:hard? false :escalate? false})

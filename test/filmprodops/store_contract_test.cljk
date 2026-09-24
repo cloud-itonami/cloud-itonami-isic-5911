@@ -1,6 +1,6 @@
 (ns filmprodops.store-contract-test
   "Contract tests for `filmprodops.store/Store` protocol."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [filmprodops.store :as store]))
 
 (deftest mem-store-production-lookup
